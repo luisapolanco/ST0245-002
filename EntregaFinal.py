@@ -17,17 +17,19 @@ area = gpd.GeoDataFrame(area)
 #AVERAGE OF HARASSMENT RISK IN FIELDS WITH N/A
 
 edges['harassmentRisk'].fillna(edges['harassmentRisk'].mean(), inplace = True)
+edges["harassmentRisk * length"] = edges["harassmentRisk"] * edges["length"]
+edges
 
 #ALL THE STREETS WITH TWO DIRECTIONS
 
 two_directions = edges.rename(columns = {'origin': 'destination', 'destination': 'origin'})
 two_directions = two_directions[two_directions['oneway'] == True]
-two_directions = two_directions[['name', 'origin', 'destination', 'length', 'oneway', 'harassmentRisk', 'geometry'  ]]
+two_directions = two_directions[['name', 'origin', 'destination', 'length', 'oneway', 'harassmentRisk', 'geometry','harassmentRisk * length' ]]
 
 #JOIN BOTH DATAFRAMES
 
-two_directions = two_directions[['name', 'origin', 'destination','length',  'harassmentRisk', 'geometry' ]]
-edgesWithoutOneWay = edges[['name', 'origin', 'destination','length',  'harassmentRisk', 'geometry']]
+two_directions = two_directions[['name', 'origin', 'destination','length',  'harassmentRisk', 'geometry', 'harassmentRisk * length' ]]
+edgesWithoutOneWay = edges[['name', 'origin', 'destination','length',  'harassmentRisk', 'geometry', 'harassmentRisk * length']]
 
 data = edgesWithoutOneWay.to_numpy().tolist() + two_directions.to_numpy().tolist()
 
@@ -35,7 +37,7 @@ data_pandas = [edgesWithoutOneWay, two_directions]
 
 streets = pd.concat(data_pandas)
 
-streets
+streets 
 
 #CONVERT DATAFRAME TO A DICTIONARY
 
@@ -43,11 +45,11 @@ hash_table = dict()
 
 for elemento in range (len(data)):
   if data[elemento][1] in hash_table:
-    info_list = [data[elemento][2], data[elemento][3], data[elemento][4]]
+    info_list = [data[elemento][2], data[elemento][3], data[elemento][4], data[elemento][6]]
     hash_table[data[elemento][1]].append(info_list)
   else:
-     info_list = [data[elemento][2], data[elemento][3], data[elemento][4]]
-     hash_table[data[elemento][1]]= [info_list]
+    info_list = [data[elemento][2], data[elemento][3], data[elemento][4], data[elemento][6]] 
+    hash_table[data[elemento][1]]= [info_list]
 
 
 
@@ -55,11 +57,11 @@ for elemento in range (len(data)):
 
 ##THE SHORTEST PATH
 
-shortPath = nx.from_pandas_edgelist(edges, source="origin", target="destination", edge_attr="length")
+shortPathWithLessHarassment = nx.from_pandas_edgelist(edges, source="origin", target="destination", edge_attr="harassmentRisk * length")
 
-djk_path = nx.dijkstra_path(shortPath, source='(-75.5794075, 6.2553331)', target='(-75.5797083, 6.254806)', weight=True)
+djk_path = nx.dijkstra_path(shortPathWithLessHarassment, source='(-75.5762232, 6.266327)', target='(-75.5832559, 6.2601878)', weight=True)
 
-#DRAW SHORT PATH
+#DRAW SHORT PATH WITH TOTAL DISTANCE AND AVERAGE OF HARASSMENT RISK 
 
 listLengthOrigins = []
 for i in range(len(djk_path) -2):
@@ -69,6 +71,21 @@ listLengthDestinations = []
 for i in range(1, len(djk_path) -1):
   listLengthDestinations.append(djk_path[i])
 
+totalDistance = 0
+totalhrisk = 0
+
+for i in range( len(listLengthOrigins)):
+  element = streets[(streets['origin'] == listLengthOrigins[i]) & (streets['destination'] == listLengthDestinations[i])]
+  length = element['length'].values
+  hrisk = element['harassmentRisk'].values
+  totalDistance += length
+  totalhrisk  += hrisk
+  
+
+print("Menor distancia: " , totalDistance)
+print("Menor riesgo de acoso: " , totalhrisk/len(listLengthOrigins))
+
+
 fig, ax = plt.subplots(figsize =(12,8))
 
 area.plot(ax=ax, facecolor='black')
@@ -77,37 +94,7 @@ edges.plot(ax=ax, linewidth=1, edgecolor='dimgray')
 
 for i in range(len(listLengthOrigins)):
   dist = edges[(edges['origin'] == listLengthOrigins[i]) & (edges['destination'] == listLengthDestinations[i])]
-  dist.plot(ax = ax, linewidth=10, edgecolor= 'yellow')
-
-plt.tight_layout()
-plt.show()
-
-
-##THE PATH WITH THE LOWEST RISK OF HARASSMENT
-
-lowestRisk = nx.from_pandas_edgelist(edges, source="origin", target="destination", edge_attr="harassmentRisk")
-
-djk_pathHR = nx.dijkstra_path(lowestRisk, source='(-75.5794075, 6.2553331)', target='(-75.5797083, 6.254806)', weight=True)
-
-#DRAW THE PATH WITH THE LOWEST RISK
-
-listHROrigins = []
-for i in range(len(djk_pathHR) -2):
-  listHROrigins.append(djk_pathHR[i])
-
-listHRDestinations = []
-for i in range(1, len(djk_pathHR) -1):
-  listHRDestinations.append(djk_pathHR[i])
-
-fig, ax = plt.subplots(figsize =(12,8))
-
-area.plot(ax=ax, facecolor='black')
-
-edges.plot(ax=ax, linewidth=1, edgecolor='dimgray')
-
-for i in range(len(listHROrigins)):
-  dist = edges[(edges['origin'] == listHROrigins[i]) & (edges['destination'] == listHRDestinations[i])]
-  dist.plot(ax = ax, linewidth=10, edgecolor= 'yellow')
+  dist.plot(ax = ax, linewidth=5, edgecolor= 'yellow')
 
 plt.tight_layout()
 plt.show()
